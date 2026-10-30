@@ -223,7 +223,7 @@
             return fullText.substring(0, 8000); // Max ~8000 chars
         }
 
-        // Fetch questions from Gemini API
+        // Fetch questions from Gemini API with safe error handling
         async function fetchQuestionsFromGemini(apiKey, text, count) {
             const prompt = `Buatkan ${count} soal pilihan ganda (A, B, C, D) untuk Simulasi Ujian UPKP berdasarkan materi berikut:\n\n${text}\n\nRespon WAJIB dalam format JSON Array murni tanpa format markdown seperti berikut:\n[\n  {\n    "question": "Pertanyaan...",\n    "options": ["A. Opsi A", "B. Opsi B", "C. Opsi C", "D. Opsi D"],\n    "answer": 0,\n    "explanation": "Pembahasan singkat..."\n  }\n] Note: "answer" berisi indeks angka dari opsi yang benar (0 untuk A, 1 untuk B, 2 untuk C, 3 untuk D).`;
 
@@ -234,9 +234,23 @@
             });
 
             const data = await res.json();
+
+            // Cek apakah API mengembalikan error atau candidates kosong
+            if (data.error) {
+                throw new Error(data.error.message || "Kesalahan dari Gemini API.");
+            }
+            if (!data.candidates || data.candidates.length === 0 || !data.candidates[0].content) {
+                throw new Error("Respons dari Gemini kosong atau diblokir oleh filter keamanan.");
+            }
+
             const rawText = data.candidates[0].content.parts[0].text;
             const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-            return JSON.parse(cleanJson);
+            
+            try {
+                return JSON.parse(cleanJson);
+            } catch (e) {
+                throw new Error("Gagal memparsing format JSON dari AI. Silakan coba lagi.");
+            }
         }
 
         // 2. START EXAM & TIMER
